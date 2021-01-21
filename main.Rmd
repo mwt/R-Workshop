@@ -1,0 +1,265 @@
+---
+title: "Introduction to R"
+author: "Matthew Thomas"
+output: 
+  beamer_presentation: 
+    pandoc_args: "--highlight=style/my.theme"
+    includes:
+      in_header: style/twocol.tex
+    theme: metropolis
+---
+
+```{r include=FALSE}
+library(tidyverse)
+set.seed(100)
+knitr::opts_chunk$set(comment = NA)
+# Adjust summary function so that results fit on the page
+summary2 <- summary
+summary <- function(object, ...){
+  return(summary2(object, ...)$coef)
+}
+
+# Change ggplot2 theme
+theme_set(theme_bw())
+```
+
+## Why R?
+
+* R is free, open source, and incredibly popular
+* There is a large (and welcoming) community of R programmers online who can help troubleshoot code and answer questions
+* The language is incredibly well (and consistently) documented
+* There are thousands of packages which implement statistical estimators and other use cases.
+
+# Defining variables/basic data types
+
+## Vectors and Assignment
+The function `c()` takes vectors and creates a new longer vector. The assignment operator `<-` is a shortcut for the `assign()` function.
+```{r}
+x <- c(1,2,4,6,10:13)
+assign("y",c(1,2,4,6,10:13))
+```
+```{r}
+x
+y
+```
+
+## Operators
+```{r}
+x/y # Operators on vectors apply element-wise
+(1:2) * (1:8)  # Vectors will repeat if necessary
+(1:6) > (6:1)  # Logical operators: <,<=,==,>=,>,!=
+!(1:6) > (6:1) # Reverse logic with !
+```
+
+## Matrices
+A matrix is a vector with a dimension attribute. Matrices are filled column by column unless specified.
+```{r}
+(mat <- matrix(data = x, ncol = 2))
+```
+
+## Sub-setting Matrices
+You can subset a matrix using row,col indexing.
+```{r}
+mat[1,]  # First row of matrix
+mat[,2]  # Second column of matrix
+mat[1,2] # Second element of first row
+```
+
+## Warning about One Dimensional Matrices  
+An nx1 matrix and a vector are not the same thing. For example, a nx1 matrix will not replicate if necessary.
+
+```{r error=TRUE}
+matrix(1:2) * matrix(1:8)
+```
+
+## Defining Functions
+Functions are objects in R that can be applied to other objects. `c()`, `mean()`, and `sum()` are examples of built-in functions. You can also write your own functions.
+
+```{r}
+sumsq <- function(var){
+  return(sum(var^2))
+}
+```
+
+## Calling Functions
+These functions can be called just as any built-in function.
+```{r}
+sumsq(c(1,2))
+```
+
+The convenience operator `%>%` passes the preceding object to the first argument of any function.
+```{r}
+c(1,2) %>% sumsq()
+```
+
+## Lists
+Lists can contain any object types.
+```{r}
+z <- list( "y" = y,
+           "istwo" = y^2 == y*2,
+           "p" = runif(8)*(1:4)/y^2 )
+```
+You can reference items from a list using brackets or dollar sign
+```{r}
+z["y"]  # Returns a single element list
+z$istwo # Returns a vector
+```
+
+# Dealing with data frames
+
+## Creating a data frame
+You can make a data frame using vectors or a list. Data frames are special lists with elements of the same length.
+```{r}
+(df1 <- data.frame(z))
+```
+
+## Adding to data frames
+You can reference and add to a data frame just as you can with any other list. However, data frames will repeat elements if necessary to enforce the length requirement.
+```{r}
+df1$prod <- LETTERS[1:4]
+head(df1)
+```
+## Matrix-like properties of data frames
+
+Due to the length requirement, data frames have limited matrix like properties. You can index a data frame just like a matrix.
+```{r}
+df1[1,] # First row of data frame
+```
+You can even apply most operators to **numeric** data frames. Linear algebra operators do not work on data frames.
+```{r}
+df1[1,1:3]+1 # Have to exclude prod
+```
+
+## Manipulating data frames
+You can manipulate data using the traditional list interface
+```{r}
+df1$ly <- log(df1$y)
+```
+The `tidyverse` package has introduced another way to do this using the `mutate()` function
+```{r}
+df1 <- df1 %>% mutate(ly2 = log(y))
+head(df1,4)
+```
+
+# Regression
+
+## Running a regression
+If you just want to run a regression in R, often do not need to manipulate data. Regressions in R allow you to adjust variables using ``formulas''. Suppose we want to estimate the following model:
+$$
+\log(y) = \beta_0 + \beta_1 \log(p) + \beta_2 prodB + \beta_3 prodC + \beta_4 prodD
+$$
+\small
+```{r}
+lm(log(y) ~ log(p) + prod, data = df1) %>% summary()
+```
+\normalsize
+
+## Interaction terms
+You can add interaction terms by using a `:` between two variable names.
+\small
+```{r}
+lm(log(y) ~ log(p) + log(p):prod, data = df1) %>% summary()
+```
+\normalsize
+
+## Removing the constant
+You can suppress the constant by adding `-1` to the formula. Note that it automatically adds the dummy for product A back into the regression.
+\small
+```{r}
+lm(log(y) ~ log(p) + prod - 1, data = df1) %>% summary()
+```
+\normalsize
+
+## Polynomials
+R does not allow arbitrary binary operators inside of an equation.
+\small
+```{r}
+lm(log(y) ~ p + p^2, data = df1) %>% summary()
+```
+\normalsize
+To run a polynomial fit, you need to use the `poly` function
+\small
+```{r}
+lm(log(y) ~ poly(p,2), data = df1) %>% summary()
+```
+\normalsize
+
+## Overriding
+But what if you just want the square term? For that, you need to override using the inhibit function, `I()`.
+\small
+```{r}
+lm(log(y) ~ p^2, data = df1) %>% summary()
+lm(log(y) ~ I(p^2), data = df1) %>% summary()
+```
+\normalsize
+
+# Visualization
+
+## Builtin graphics
+There are several basic builtin plot commands builtin to R.
+
+\begincols
+  \begincol{.48\textwidth}
+```{r}
+plot(df1$y ~ df1$p, cex=2)
+```
+  \endcol
+\begincol{.48\textwidth}
+```{r}
+hist(df1$p, breaks = 8)
+```
+  \endcol
+\endcols
+
+They are not very pretty, but they are very easy to use.
+
+## ggplot2 graphics
+
+```{r fig.height = 4.5}
+ggplot(data = df1, aes(x=p, y=y, col=prod)) + 
+  geom_point(size=2) +                      
+  geom_smooth(method="lm", col="blue", size=1) + 
+  coord_cartesian(xlim=c(0,0.3), ylim=c(0,13)) + 
+  labs(title="Demand", y="Quantity", x="Price")
+```
+
+
+# Appendix
+
+## Converting a data frame to a matrix
+Because a matrix can contain categorical variables and strings, it is not always possible to directly convert a data frame to a matrix. An all numeric data frame can be converted by simply using `as.matrix()`
+```{r}
+dfa <- data.frame(a=1:5,b=77:81,c=log(22:18))
+dfb <- data.frame(a=letters[1:5],b=77:81,c=log(22:18))
+```
+\begincols
+  \begincol{.48\textwidth}
+```{r}
+as.matrix(dfa)
+```
+  \endcol
+\begincol{.48\textwidth}
+```{r}
+as.matrix(dfb)
+```
+  \endcol
+\endcols
+
+## Converting a data frame to a matrix
+In order to properly convert a data frame with strings or factors into a numeric matrix, we need to use `model.matrix()`. This is what R uses when it runs regressions.
+```{r}
+model.matrix(~a+b+c-1,dfb)
+```
+
+## Linear Algebra and apply
+The `apply()` function applies some function across rows `(MARGIN=1)` or columns `(MARGIN=2)` of a matrix.
+```{r}
+apply(X=mat, MARGIN=1, FUN=sumsq)
+```
+
+The operators `%*%` and `%^%` do matrix multiplication and exponentiation. The function `t()` transposes. If you can accomplish a task with linear algebra, it is generally faster than `apply()`. 
+```{r}
+c(mat^2 %*% c(1,1))
+```
+for example is more than twice as fast for a large matrix.
+
